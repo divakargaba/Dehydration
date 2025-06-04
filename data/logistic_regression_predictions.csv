@@ -1,0 +1,3 @@
+Actual Class,Predicted Class,Actual Label,Predicted Label
+1,2,🟡 Moderately Dehydrated,🔴 Very Dehydrated
+1,0,🟡 Moderately Dehydrated,🟢 Well Hydrated
