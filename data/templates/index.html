@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hydration Assistant Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f0f2f5;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container-custom {
+      max-width: 1200px;
+      margin: auto;
+      padding: 40px 20px;
+    }
+
+    .dashboard {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .chat-box {
+      height: 400px;
+      overflow-y: auto;
+      background: #fafafa;
+      padding: 15px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      margin-bottom: 20px;
+    }
+
+    .chat-message {
+      margin-bottom: 10px;
+      padding: 10px 15px;
+      border-radius: 10px;
+      max-width: 70%;
+    }
+
+    .chat-message.user {
+      background-color: #cce5ff;
+      align-self: flex-end;
+      text-align: right;
+    }
+
+    .chat-message.bot {
+      background-color: #f8d7da;
+      align-self: flex-start;
+    }
+
+    .vitals-box {
+      margin-top: 20px;
+    }
+
+    .vital-display {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #007bff;
+    }
+
+    .section-header {
+      font-weight: bold;
+      font-size: 1.3rem;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+<div class="container-custom">
+  <div class="row">
+    <div class="col-md-6">
+      <div class="dashboard">
+        <div class="section-header">Live Heart Rate</div>
+        <div class="vitals-box">
+          <p>Current HR:</p>
+          <div class="vital-display" id="hrValue">-- bpm</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="dashboard d-flex flex-column">
+        <div class="section-header">Hydration Chatbot</div>
+        <div class="chat-box d-flex flex-column" id="chatHistory">
+          {% for item in session['history'] %}
+            <div class="chat-message {{ 'user' if item.role == 'user' else 'bot' }}">
+              <strong>{{ item.role.capitalize() }}:</strong> {{ item.content }}
+            </div>
+          {% endfor %}
+        </div>
+
+        <form method="POST" class="d-flex mt-auto">
+          <input type="text" name="message" class="form-control me-2" placeholder="Type your message..." required>
+          <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+        <a href="/clear" class="btn btn-link mt-2">Clear Chat</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Polling HR every 5s
+  setInterval(() => {
+    fetch("/hr")
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("hrValue").innerText = `${data.hr} bpm`;
+      });
+  }, 5000);
+</script>
+</body>
+</html>
+
+
+
+
