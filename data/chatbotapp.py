@@ -5,12 +5,16 @@ import openai
 import tensorflow as tf
 import joblib
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "put ur key here"
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
 
 # Load GPT client
-client = openai.OpenAI(api_key="put ur key here")
+client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # Load ANN model and scaler
 ann_model = tf.keras.models.load_model("ann_model.h5")

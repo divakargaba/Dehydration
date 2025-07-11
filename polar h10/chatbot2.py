@@ -4,13 +4,17 @@ import tensorflow as tf
 import joblib
 import os
 import random
+import requests  # Add this import at the top
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "" # Enter key
-
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
 
 # Load GPT client
-client = openai.OpenAI(api_key="") # Enter key
+client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 
 # Load ANN model and scaler
@@ -39,8 +43,34 @@ def index():
         user_message = request.form["message"]
         session["history"].append({"role": "user", "content": user_message})
 
-        # GPT logic
-        gpt_reply = gpt_response([{"role": "system", "content": "You are a hydration assistant that considers user input and current heart rate to assess hydration."}] + session["history"])
+        # Fetch latest vitals and ANN status
+        try:
+            vitals = requests.get("http://localhost:5000/latest_metrics").json()
+        except Exception:
+            vitals = {}
+        try:
+            ann = requests.get("http://localhost:5000/predict_ann").json()
+        except Exception:
+            ann = {"status": "Unknown", "prediction": None}
+        # Build vitals string
+        vitals_str = (
+            f"Body Temp: {vitals.get('Body Temp', 'N/A')}°C\n"
+            f"Heart Rate: {vitals.get('Heart Rate', 'N/A')} bpm\n"
+            f"Steps: {vitals.get('Steps', 'N/A')}\n"
+            f"Active Energy: {vitals.get('Active Energy', 'N/A')}\n"
+            f"Water Intake: {vitals.get('Water Intake', 'N/A')}\n"
+        )
+        status_str = ann.get("status", "Unknown")
+        # Compose system prompt
+        system_prompt = (
+            "You are a hydration assistant. Always answer in this format: "
+            "1. List the user's current vitals. 2. Clearly state if the user is dehydrated or well hydrated based on the status below. 3. Give hydration advice.\n"
+            f"Current Vitals:\n{vitals_str}Hydration Status: {status_str}.\n"
+        )
+        gpt_reply = gpt_response([
+            {"role": "system", "content": system_prompt},
+            *session["history"]
+        ])
         bot_reply = gpt_reply
         session["history"].append({"role": "assistant", "content": bot_reply})
 
