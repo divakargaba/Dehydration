@@ -9,8 +9,6 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, mean_squared_error, r2_score
-import tkinter as tk
-from tkinter import messagebox
 
 print("🧠 Starting ANN Classifier (Hydration Level)...")
 
@@ -25,7 +23,8 @@ df.dropna(inplace=True)
 def label_status_binary(level): return 0 if level <= 3 else 1
 df['hydration_class'] = df['stress_level'].apply(label_status_binary)
 
-X = df[['EDA', 'Temp', 'HR', 'Acc_X', 'Acc_Y', 'Acc_Z']]
+# Remove EDA from features
+X = df[['Temp', 'HR', 'Acc_X', 'Acc_Y', 'Acc_Z']]
 y = df['hydration_class']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=2, random_state=42)
@@ -92,19 +91,19 @@ else:
     print("ANN underperformed. Try deeper model or tuning.")
 
 # ========== Popup ==========
-def show_popup():
-    msg = (
-        f"ANN Classifier Summary:\n\n"
-        f"Accuracy: {accuracy:.2f}\n"
-        f"MSE: {mse:.2f}\n"
-        f"R²: {r2:.2f}\n"
-        f"Sample Prediction: {class_label_binary(y_pred[0])}"
-    )
-    messagebox.showinfo("ANN Classifier", msg)
-
-root = tk.Tk()
-root.withdraw()
-show_popup()
+# def show_popup():
+#     msg = (
+#         f"ANN Classifier Summary:\n\n"
+#         f"Accuracy: {accuracy:.2f}\n"
+#         f"MSE: {mse:.2f}\n"
+#         f"R²: {r2:.2f}\n"
+#         f"Sample Prediction: {class_label_binary(y_pred[0])}"
+#     )
+#     messagebox.showinfo("ANN Classifier", msg)
+#
+# root = tk.Tk()
+# root.withdraw()
+# show_popup()
 
 print("\n✅ Done.")
 
