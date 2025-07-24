@@ -518,6 +518,109 @@ struct RoundedCorner: Shape {
     }
 }
 
+struct ModernHeaderCard: View {
+    let status: String
+    let risk: String
+    let reason: String
+    let time: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 16) {
+                ZStack {
+                    LinearGradient(gradient: Gradient(colors: [Color.blue, Color.purple]), startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .shadow(color: Color.purple.opacity(0.18), radius: 8, x: 0, y: 4)
+                    Image(systemName: risk == "High" ? "exclamationmark.triangle.fill" : (risk == "Moderate" ? "exclamationmark.circle.fill" : "checkmark.seal.fill"))
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hydration Status")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(status)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    Text("Risk (10–30 min): ")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Text(risk)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(risk == "High" ? .red : (risk == "Moderate" ? .yellow : .green))
+                        if let t = time {
+                            Text(t)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                Spacer()
+            }
+            if !reason.isEmpty {
+                Text(reason)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+            }
+        }
+        .padding()
+        .background(BlurView(style: .systemMaterial))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.purple.opacity(0.10), radius: 12, x: 0, y: 6)
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .animation(.easeInOut, value: status)
+        .animation(.easeInOut, value: risk)
+    }
+}
+
+struct BlurView: UIViewRepresentable {
+    var style: UIBlurEffect.Style
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        return UIVisualEffectView(effect: UIBlurEffect(style: style))
+    }
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+}
+
+struct ModernMetricCard: View {
+    let metric: HealthMetric
+    var body: some View {
+        VStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(metric.color.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                Image(systemName: metric.icon)
+                    .font(.title2)
+                    .foregroundColor(metric.color)
+            }
+            Text(metric.title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text(metric.value)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundColor(metric.color)
+            if !metric.unit.isEmpty {
+                Text(metric.unit)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(BlurView(style: .systemThinMaterial))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: metric.color.opacity(0.08), radius: 6, x: 0, y: 2)
+        .animation(.easeInOut, value: metric.value)
+    }
+}
+
 struct ContentView: View {
     @State private var healthMetrics: [HealthMetric] = []
     @State private var accX: Double = 0.0
@@ -543,87 +646,48 @@ struct ContentView: View {
         TabView {
             NavigationView {
                 ScrollView {
-                    VStack(spacing: 20) {
-                        // Advance Dehydration Risk Card
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: dehydrationRisk == "High" ? "exclamationmark.triangle.fill" : (dehydrationRisk == "Moderate" ? "exclamationmark.circle.fill" : "checkmark.seal.fill"))
-                                    .foregroundColor(dehydrationRisk == "High" ? .red : (dehydrationRisk == "Moderate" ? .yellow : .green))
-                                    .font(.title)
-                                VStack(alignment: .leading) {
-                                    Text("Hydration Status: ")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(dehydrationStatus)
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    Text("Dehydration Risk (next 10–30 min): ")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(dehydrationRisk)
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(dehydrationRisk == "High" ? .red : (dehydrationRisk == "Moderate" ? .yellow : .green))
-                                    if let time = dehydrationTime {
-                                        Text(time)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    if !dehydrationReason.isEmpty {
-                                        Text(dehydrationReason)
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
-                        .padding(.horizontal)
+                    VStack(spacing: 24) {
+                        // Modern Header Card
+                        ModernHeaderCard(
+                            status: dehydrationStatus,
+                            risk: dehydrationRisk,
+                            reason: dehydrationReason,
+                            time: dehydrationTime
+                        )
                         // Connection Status
                         HStack {
                             Circle()
                                 .fill(isConnected ? Color.green : Color.red)
-                                .frame(width: 12, height: 12)
-                            
+                                .frame(width: 10, height: 10)
                             Text(isConnected ? "Connected to Server" : "Disconnected")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            
                             Spacer()
-                            
                             Text("Last update: \(lastUpdateTime, style: .time)")
-                                .font(.caption)
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                         .padding(.horizontal)
-                        
                         // Main Metrics Grid
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 18) {
                             ForEach(healthMetrics) { metric in
-                                MetricCard(metric: metric)
+                                ModernMetricCard(metric: metric)
                             }
-                            
-                            // Additional metrics
-                            MetricCard(metric: HealthMetric(
+                            ModernMetricCard(metric: HealthMetric(
                                 title: "Steps",
                                 value: String(format: "%.0f", steps),
                                 unit: "",
                                 color: .green,
                                 icon: "figure.walk"
                             ))
-                            
-                            MetricCard(metric: HealthMetric(
+                            ModernMetricCard(metric: HealthMetric(
                                 title: "Active Energy",
                                 value: String(format: "%.0f", activeEnergy),
                                 unit: "kcal",
                                 color: .orange,
                                 icon: "flame"
                             ))
-                            
-                            MetricCard(metric: HealthMetric(
+                            ModernMetricCard(metric: HealthMetric(
                                 title: "Water Intake",
                                 value: String(format: "%.1f", waterIntake),
                                 unit: "L",
@@ -632,38 +696,36 @@ struct ContentView: View {
                             ))
                         }
                         .padding(.horizontal)
-                        
                         // Accelerometer Data
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Motion Data")
                                 .font(.headline)
                                 .padding(.horizontal)
-                            
                             HStack(spacing: 12) {
-                                StatusCard(
+                                ModernMetricCard(metric: HealthMetric(
                                     title: "Acceleration X",
                                     value: String(format: "%.3f", accX),
+                                    unit: "g",
                                     color: .purple,
                                     icon: "arrow.left.and.right"
-                                )
-                                
-                                StatusCard(
+                                ))
+                                ModernMetricCard(metric: HealthMetric(
                                     title: "Acceleration Y",
                                     value: String(format: "%.3f", accY),
+                                    unit: "g",
                                     color: .purple,
                                     icon: "arrow.up.and.down"
-                                )
-                                
-                                StatusCard(
+                                ))
+                                ModernMetricCard(metric: HealthMetric(
                                     title: "Acceleration Z",
                                     value: String(format: "%.3f", accZ),
+                                    unit: "g",
                                     color: .purple,
                                     icon: "arrow.up.and.down.circle"
-                                )
+                                ))
                             }
                             .padding(.horizontal)
                         }
-                        
                         // Send Button
                         Button(action: {
                             sendToServer()
@@ -671,7 +733,6 @@ struct ContentView: View {
                             HStack {
                                 Image(systemName: "paperplane.fill")
                                     .font(.title3)
-                                
                                 Text("Send to Server")
                                     .font(.headline)
                                     .fontWeight(.semibold)
@@ -686,15 +747,20 @@ struct ContentView: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .cornerRadius(16)
-                            .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .shadow(color: .blue.opacity(0.18), radius: 8, x: 0, y: 4)
                         }
                         .padding(.horizontal)
                         .padding(.bottom)
                     }
+                    .padding(.top, 8)
                 }
                 .navigationTitle("Hydration Monitor")
                 .navigationBarTitleDisplayMode(.large)
+                .background(
+                    LinearGradient(gradient: Gradient(colors: [Color(.systemGray6), Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
+                        .ignoresSafeArea()
+                )
                 .onAppear {
                     requestAndFetchHealthData()
                     startAccelerometerUpdates()
@@ -710,12 +776,10 @@ struct ContentView: View {
             .tabItem {
                 Label("Metrics", systemImage: "heart.fill")
             }
-            
             ChatbotView()
                 .tabItem {
                     Label("Chatbot", systemImage: "message.circle")
                 }
-            
             DeveloperView()
                 .tabItem {
                     Label("Developers", systemImage: "person.3.fill")
