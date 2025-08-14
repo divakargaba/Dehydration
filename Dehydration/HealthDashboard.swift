@@ -274,7 +274,7 @@ struct ChatbotView: View {
     @State private var isTyping: Bool = false
     @State private var isConnected: Bool = false
     
-    let serverURL = "http://192.168.1.75:5000"
+    let serverURL = "enter your server url here"
     
     var body: some View {
         VStack(spacing: 0) {
@@ -354,7 +354,7 @@ struct ChatbotView: View {
                         }
                     }
                 }
-                .onChange(of: messages.count) { _ in
+                .onChange(of: messages.count) {
                     if let lastMessage = messages.last {
                         withAnimation(.easeOut(duration: 0.3)) {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
@@ -621,6 +621,298 @@ struct ModernMetricCard: View {
     }
 }
 
+struct AnalyticsView: View {
+    @State private var analytics: AnalyticsData?
+    @State private var isLoading = false
+    let userId: String
+    let serverURL: String
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                if isLoading {
+                    ProgressView("Loading analytics...")
+                        .padding()
+                } else if let analytics = analytics {
+                    // Summary Cards
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        AnalyticsCard(
+                            title: "Total Days",
+                            value: "\(analytics.summary.total_days)",
+                            icon: "calendar",
+                            color: .blue
+                        )
+                        AnalyticsCard(
+                            title: "Total Steps",
+                            value: "\(analytics.summary.total_steps)",
+                            icon: "figure.walk",
+                            color: .green
+                        )
+                        AnalyticsCard(
+                            title: "Water Intake",
+                            value: String(format: "%.1fL", analytics.summary.total_water_liters),
+                            icon: "drop.fill",
+                            color: .blue
+                        )
+                        AnalyticsCard(
+                            title: "Risk %",
+                            value: String(format: "%.1f%%", analytics.summary.dehydration_risk_percentage),
+                            icon: "exclamationmark.triangle.fill",
+                            color: .red
+                        )
+                    }
+                    .padding(.horizontal)
+                    
+                    // Trends Section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Trends")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 12) {
+                            HStack {
+                                Image(systemName: "chart.line.uptrend.xyaxis")
+                                    .foregroundColor(.green)
+                                VStack(alignment: .leading) {
+                                    Text("Water Intake Trend")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text(analytics.trends.water_intake_trend.capitalized)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                            
+                            HStack {
+                                Image(systemName: "drop.fill")
+                                    .foregroundColor(.blue)
+                                VStack(alignment: .leading) {
+                                    Text("Recent Average")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("\(analytics.trends.recent_avg_water, specifier: "%.2f")L")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                            
+                            HStack {
+                                Image(systemName: "drop.fill")
+                                    .foregroundColor(.blue)
+                                VStack(alignment: .leading) {
+                                    Text("Overall Average")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("\(analytics.trends.overall_avg_water, specifier: "%.2f")L")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+                    
+                    // Best/Worst Days
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Performance")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        HStack(spacing: 12) {
+                            VStack {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                                    .font(.title2)
+                                Text("Best Day")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Text("\(analytics.best_day.water_intake, specifier: "%.1f")L")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                Text("\(analytics.best_day.steps) steps")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.yellow.opacity(0.1))
+                            .cornerRadius(12)
+                            
+                            VStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.title2)
+                                Text("Needs Improvement")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Text("\(analytics.worst_day.water_intake, specifier: "%.1f")L")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                Text("\(analytics.worst_day.steps) steps")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                    }
+                } else {
+                    Text("No analytics data available")
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+            }
+            .padding(.top)
+        }
+        .navigationTitle("Analytics")
+        .onAppear {
+            loadAnalytics()
+        }
+    }
+    
+    func loadAnalytics() {
+        isLoading = true
+        guard let url = URL(string: "\(serverURL)/user/\(userId)/analytics") else { return }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    print("Failed to load analytics:", error)
+                    return
+                }
+                guard let data = data,
+                      let analytics = try? JSONDecoder().decode(AnalyticsData.self, from: data) else {
+                    return
+                }
+                self.analytics = analytics
+            }
+        }.resume()
+    }
+}
+
+struct AnalyticsCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            Text(value)
+                .font(.title3)
+                .fontWeight(.bold)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct AchievementsView: View {
+    @State private var achievements: [Achievement] = []
+    @State private var isLoading = false
+    let userId: String
+    let serverURL: String
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                if isLoading {
+                    ProgressView("Loading achievements...")
+                        .padding()
+                } else if !achievements.isEmpty {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        ForEach(achievements) { achievement in
+                            AchievementCard(achievement: achievement)
+                        }
+                    }
+                    .padding(.horizontal)
+                } else {
+                    VStack {
+                        Image(systemName: "trophy")
+                            .font(.system(size: 60))
+                            .foregroundColor(.yellow)
+                        Text("No Achievements Yet")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Keep using the app to earn achievements!")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                }
+            }
+            .padding(.top)
+        }
+        .navigationTitle("Achievements")
+        .onAppear {
+            loadAchievements()
+        }
+    }
+    
+    func loadAchievements() {
+        isLoading = true
+        guard let url = URL(string: "\(serverURL)/user/\(userId)/achievements") else { return }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    print("Failed to load achievements:", error)
+                    return
+                }
+                guard let data = data,
+                      let achievements = try? JSONDecoder().decode([Achievement].self, from: data) else {
+                    return
+                }
+                self.achievements = achievements
+            }
+        }.resume()
+    }
+}
+
+struct AchievementCard: View {
+    let achievement: Achievement
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "trophy.fill")
+                .font(.title)
+                .foregroundColor(.yellow)
+            Text(achievement.message)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.center)
+            // earned_at is a String; show raw string. If you want formatted date, parse it to Date first
+            Text(achievement.earned_at)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.yellow.opacity(0.1))
+        .cornerRadius(12)
+    }
+}
+
 struct ContentView: View {
     @State private var healthMetrics: [HealthMetric] = []
     @State private var accX: Double = 0.0
@@ -636,26 +928,357 @@ struct ContentView: View {
     @State private var dehydrationRisk: String = "Loading..."
     @State private var dehydrationReason: String = ""
     @State private var dehydrationTime: String? = nil
+    @State private var userAlerts: [Alert] = []
+    @State private var showingAlert: Bool = false
+    @State private var alertMessage: String = ""
+    @State private var personalRecommendations: [String] = []
+    @State private var modelStatus: ModelStatus = ModelStatus()
+    @State private var weatherData: WeatherData?
+    
     let healthStore = HKHealthStore()
     let motionManager = CMMotionManager()
     let serverURL = "http://192.168.1.75:5000"
     let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     let riskTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    let alertTimer = Timer.publish(every: 300, on: .main, in: .common).autoconnect() // Check alerts every 5 minutes
+    
+    // For now, use device identifier as user_id
+    let userId = UIDevice.current.identifierForVendor?.uuidString ?? "default_user"
+    // Reusable grid definition to help the type-checker
+    let gridColumnsTwo: [GridItem] = [GridItem(.flexible()), GridItem(.flexible())]
 
-    var body: some View {
-        TabView {
-            NavigationView {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Modern Header Card
+    // Extracted to ease SwiftUI type-checking
+    @ViewBuilder
+    private var metricsContent: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Modern Header Card
+                    Group {
                         ModernHeaderCard(
                             status: dehydrationStatus,
                             risk: dehydrationRisk,
                             reason: dehydrationReason,
                             time: dehydrationTime
                         )
-                        // Connection Status
+                    }
+
+                    // Weather Card
+                    Group {
+                    if let weather = weatherData {
                         HStack {
+                            Image(systemName: "cloud.sun.fill")
+                                .foregroundColor(.orange)
+                                .font(.title2)
+                            VStack(alignment: .leading) {
+                                Text("Weather")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("\(weather.temperature, specifier: "%.1f")°C")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(weather.description.capitalized)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing) {
+                                Text("Humidity")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("\(weather.humidity)%")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                    } }
+
+                    // Model Status Card
+                    Group {
+                    if modelStatus.has_personal_model {
+                        HStack {
+                            Image(systemName: "brain.head.profile")
+                                .foregroundColor(.green)
+                                .font(.title2)
+                            VStack(alignment: .leading) {
+                                Text("Personal AI Model")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("\(modelStatus.total_records) data points")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Text("Active")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.2))
+                                .cornerRadius(8)
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                    } }
+
+                    // Connection Status
+                    Group { HStack {
+                        Circle()
+                            .fill(isConnected ? Color.green : Color.red)
+                            .frame(width: 10, height: 10)
+                        Text(isConnected ? "Connected to Server" : "Disconnected")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("Last update: \(lastUpdateTime, style: .time)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    } }
+                    .padding(.horizontal)
+
+                    // Alerts Section
+                    Group {
+                    if !userAlerts.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Recent Alerts")
+                                .font(.headline)
+                                .padding(.horizontal)
+                            ForEach(userAlerts.prefix(3), id: \.id) { alert in
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                    VStack(alignment: .leading) {
+                                        Text(alert.message)
+                                            .font(.subheadline)
+                                            .foregroundColor(.primary)
+                                        Text(alert.timestamp, style: .time)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                            }
+                        }
+                    } }
+
+                    // Main Metrics Grid
+                    LazyVGrid(columns: gridColumnsTwo, spacing: 18) {
+                        ForEach(healthMetrics) { metric in
+                            ModernMetricCard(metric: metric)
+                        }
+                        ModernMetricCard(metric: HealthMetric(
+                            title: "Steps",
+                            value: String(format: "%.0f", steps),
+                            unit: "",
+                            color: .green,
+                            icon: "figure.walk"
+                        ))
+                        ModernMetricCard(metric: HealthMetric(
+                            title: "Active Energy",
+                            value: String(format: "%.0f", activeEnergy),
+                            unit: "kcal",
+                            color: .orange,
+                            icon: "flame"
+                        ))
+                        ModernMetricCard(metric: HealthMetric(
+                            title: "Water Intake",
+                            value: String(format: "%.1f", waterIntake),
+                            unit: "L",
+                            color: .blue,
+                            icon: "drop.fill"
+                        ))
+                    }
+                    .padding(.horizontal)
+
+                    // Accelerometer Data
+                    Group { VStack(alignment: .leading, spacing: 12) {
+                        Text("Motion Data")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        HStack(spacing: 12) {
+                            ModernMetricCard(metric: HealthMetric(
+                                title: "Acceleration X",
+                                value: String(format: "%.3f", accX),
+                                unit: "g",
+                                color: .purple,
+                                icon: "arrow.left.and.right"
+                            ))
+                            ModernMetricCard(metric: HealthMetric(
+                                title: "Acceleration Y",
+                                value: String(format: "%.3f", accY),
+                                unit: "g",
+                                color: .purple,
+                                icon: "arrow.up.and.down"
+                            ))
+                            ModernMetricCard(metric: HealthMetric(
+                                title: "Acceleration Z",
+                                value: String(format: "%.3f", accZ),
+                                unit: "g",
+                                color: .purple,
+                                icon: "arrow.up.and.down.circle"
+                            ))
+                        }
+                        .padding(.horizontal)
+                    } }
+
+                    // Send Button
+                    Group { Button(action: {
+                        sendToServer()
+                    }) {
+                        HStack {
+                            Image(systemName: "paperplane.fill")
+                                .font(.title3)
+                            Text("Send to Server")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [.blue, .purple]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: .blue.opacity(0.18), radius: 8, x: 0, y: 4)
+                    } }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                }
+                .padding(.top, 8)
+            }
+            .navigationTitle("Hydration Monitor")
+            .navigationBarTitleDisplayMode(.large)
+            .background(
+                LinearGradient(gradient: Gradient(colors: [Color(.systemGray6), Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+            )
+            .onAppear {
+                requestAndFetchHealthData()
+                startAccelerometerUpdates()
+                fetchDehydrationRisk()
+                fetchUserAlerts()
+                fetchModelStatus()
+                fetchWeatherData()
+            }
+            .onReceive(timer) { _ in
+                sendToServer()
+            }
+            .onReceive(riskTimer) { _ in
+                fetchDehydrationRisk()
+            }
+            .onReceive(alertTimer) { _ in
+                fetchUserAlerts()
+            }
+            .alert("Hydration Alert", isPresented: $showingAlert) {
+                Button("OK") { }
+            } message: {
+                Text(alertMessage)
+            }
+        }
+    }
+
+    var body: some View {
+        TabView {
+            // extracted metrics tab to a separate builder to ease type-checking
+            metricsContent
+            .tabItem {
+                Label("Metrics", systemImage: "heart.fill")
+            }
+
+            NavigationView {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Modern Header Card
+                        Group {
+                            ModernHeaderCard(
+                                status: dehydrationStatus,
+                                risk: dehydrationRisk,
+                                reason: dehydrationReason,
+                                time: dehydrationTime
+                            )
+                        }
+                        
+                        // Weather Card
+                        Group {
+                        if let weather = weatherData {
+                            HStack {
+                                Image(systemName: "cloud.sun.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.title2)
+                                VStack(alignment: .leading) {
+                                    Text("Weather")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text("\(weather.temperature, specifier: "%.1f")°C")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(weather.description.capitalized)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing) {
+                                    Text("Humidity")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(weather.humidity)%")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
+                            .padding(.horizontal)
+                        } }
+                        
+                        // Model Status Card
+                        Group {
+                        if modelStatus.has_personal_model {
+                            HStack {
+                                Image(systemName: "brain.head.profile")
+                                    .foregroundColor(.green)
+                                    .font(.title2)
+                                VStack(alignment: .leading) {
+                                    Text("Personal AI Model")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text("\(modelStatus.total_records) data points")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Text("Active")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(8)
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
+                            .padding(.horizontal)
+                        } }
+                        // Personal Recommendations (removed to reduce compile complexity)
+                        
+                        // Connection Status
+                        Group { HStack {
                             Circle()
                                 .fill(isConnected ? Color.green : Color.red)
                                 .frame(width: 10, height: 10)
@@ -666,10 +1289,41 @@ struct ContentView: View {
                             Text("Last update: \(lastUpdateTime, style: .time)")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                        }
+                        } }
                         .padding(.horizontal)
+                        
+                        // Alerts Section
+                        Group {
+                        if !userAlerts.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Recent Alerts")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                
+                                ForEach(userAlerts.prefix(3), id: \.id) { alert in
+                                    HStack {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(.red)
+                                        VStack(alignment: .leading) {
+                                            Text(alert.message)
+                                                .font(.subheadline)
+                                                .foregroundColor(.primary)
+                                            Text(alert.timestamp, style: .time)
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding()
+                                    .background(Color.red.opacity(0.1))
+                                    .cornerRadius(12)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        } }
+                        
                         // Main Metrics Grid
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 18) {
+                        LazyVGrid(columns: gridColumnsTwo, spacing: 18) {
                             ForEach(healthMetrics) { metric in
                                 ModernMetricCard(metric: metric)
                             }
@@ -696,8 +1350,9 @@ struct ContentView: View {
                             ))
                         }
                         .padding(.horizontal)
+                        
                         // Accelerometer Data
-                        VStack(alignment: .leading, spacing: 12) {
+                        Group { VStack(alignment: .leading, spacing: 12) {
                             Text("Motion Data")
                                 .font(.headline)
                                 .padding(.horizontal)
@@ -725,9 +1380,10 @@ struct ContentView: View {
                                 ))
                             }
                             .padding(.horizontal)
-                        }
+                        } }
+                        
                         // Send Button
-                        Button(action: {
+                        Group { Button(action: {
                             sendToServer()
                         }) {
                             HStack {
@@ -749,7 +1405,7 @@ struct ContentView: View {
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .shadow(color: .blue.opacity(0.18), radius: 8, x: 0, y: 4)
-                        }
+                        } }
                         .padding(.horizontal)
                         .padding(.bottom)
                     }
@@ -765,6 +1421,9 @@ struct ContentView: View {
                     requestAndFetchHealthData()
                     startAccelerometerUpdates()
                     fetchDehydrationRisk()
+                    fetchUserAlerts()
+                    fetchModelStatus()
+                    fetchWeatherData()
                 }
                 .onReceive(timer) { _ in
                     sendToServer()
@@ -772,14 +1431,35 @@ struct ContentView: View {
                 .onReceive(riskTimer) { _ in
                     fetchDehydrationRisk()
                 }
+                .onReceive(alertTimer) { _ in
+                    fetchUserAlerts()
+                }
+                .alert("Hydration Alert", isPresented: $showingAlert) {
+                    Button("OK") { }
+                } message: {
+                    Text(alertMessage)
+                }
+            }
+            
+            NavigationView {
+                AnalyticsView(userId: userId, serverURL: serverURL)
             }
             .tabItem {
-                Label("Metrics", systemImage: "heart.fill")
+                Label("Analytics", systemImage: "chart.bar.fill")
             }
+            
+            NavigationView {
+                AchievementsView(userId: userId, serverURL: serverURL)
+            }
+            .tabItem {
+                Label("Achievements", systemImage: "trophy.fill")
+            }
+            
             ChatbotView()
                 .tabItem {
                     Label("Chatbot", systemImage: "message.circle")
                 }
+            
             DeveloperView()
                 .tabItem {
                     Label("Developers", systemImage: "person.3.fill")
@@ -881,6 +1561,7 @@ struct ContentView: View {
         let activeEnergyValue = activeEnergy
         let waterIntakeValue = waterIntake
         let payload: [String: Any] = [
+            "user_id": userId,
             "Temp": temp,
             "HR": hr,
             "Acc_X": accX,
@@ -914,6 +1595,21 @@ struct ContentView: View {
                     isConnected = httpResponse.statusCode == 200
                     lastUpdateTime = Date()
                 }
+                
+                // Parse response for recommendations and weather
+                if let data = data,
+                   let responseDict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let recommendations = responseDict["recommendations"] as? [String] {
+                        self.personalRecommendations = recommendations
+                    }
+                    if let weatherDict = responseDict["weather"] as? [String: Any] {
+                        self.weatherData = WeatherData(
+                            temperature: weatherDict["temperature"] as? Double ?? 0,
+                            humidity: weatherDict["humidity"] as? Int ?? 0,
+                            description: weatherDict["description"] as? String ?? ""
+                        )
+                    }
+                }
             }
         }.resume()
     }
@@ -945,4 +1641,132 @@ struct ContentView: View {
             }
         }.resume()
     }
+    
+    // Fetch user alerts
+    func fetchUserAlerts() {
+        guard let url = URL(string: "\(serverURL)/user/\(userId)/alerts") else { return }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Failed to fetch alerts:", error)
+                    return
+                }
+                guard let data = data,
+                      let alerts = try? JSONDecoder().decode([Alert].self, from: data) else {
+                    return
+                }
+                self.userAlerts = alerts
+                
+                // Show alert for new high-risk alerts
+                for alert in alerts {
+                    if alert.risk_level > 0.7 && !alert.is_read {
+                        self.alertMessage = alert.message
+                        self.showingAlert = true
+                    }
+                }
+            }
+        }.resume()
+    }
+    
+    // Fetch model status
+    func fetchModelStatus() {
+        guard let url = URL(string: "\(serverURL)/user/\(userId)/model_status") else { return }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Failed to fetch model status:", error)
+                    return
+                }
+                guard let data = data,
+                      let status = try? JSONDecoder().decode(ModelStatus.self, from: data) else {
+                    return
+                }
+                self.modelStatus = status
+            }
+        }.resume()
+    }
+    
+    // Fetch weather data
+    func fetchWeatherData() {
+        guard let url = URL(string: "\(serverURL)/weather") else { return }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Failed to fetch weather:", error)
+                    return
+                }
+                guard let data = data,
+                      let weather = try? JSONDecoder().decode(WeatherData.self, from: data) else {
+                    return
+                }
+                self.weatherData = weather
+            }
+        }.resume()
+    }
+}
+
+// Alert model for database alerts
+struct Alert: Codable, Identifiable {
+    let id: Int
+    let user_id: String
+    let alert_type: String
+    let message: String
+    let risk_level: Double
+    let timestamp: String
+    let is_read: Bool
+}
+
+// Model status for personal ML
+struct ModelStatus: Codable {
+    let has_personal_model: Bool
+    let total_records: Int
+    let model_type: String
+    
+    init() {
+        self.has_personal_model = false
+        self.total_records = 0
+        self.model_type = "global"
+    }
+} 
+
+// Data models for advanced features
+struct AnalyticsData: Codable {
+    let summary: AnalyticsSummary
+    let trends: AnalyticsTrends
+    let best_day: AnalyticsDay
+    let worst_day: AnalyticsDay
+}
+
+struct AnalyticsSummary: Codable {
+    let total_days: Int
+    let total_steps: Int
+    let total_water_liters: Double
+    let avg_heart_rate: Double
+    let dehydration_risk_percentage: Double
+}
+
+struct AnalyticsTrends: Codable {
+    let water_intake_trend: String
+    let recent_avg_water: Double
+    let overall_avg_water: Double
+}
+
+struct AnalyticsDay: Codable {
+    let date: String
+    let water_intake: Double
+    let steps: Int
+}
+
+struct Achievement: Codable, Identifiable {
+    let id: Int
+    let user_id: String
+    let achievement_type: String
+    let message: String
+    let earned_at: String
+}
+
+struct WeatherData: Codable {
+    let temperature: Double
+    let humidity: Int
+    let description: String
 } 
